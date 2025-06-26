@@ -1,0 +1,107 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+
+model TreeView {
+  tree_view_id        Int      @id @default(autoincrement())
+  start_seconds       Int
+  start_milliseconds  String
+  duration            Int
+  minutes             Int      
+  seconds             Int      
+  tree_id             Int
+  video_id            Int
+  tree                Tree     @relation(fields: [tree_id], references: [tree_id], onDelete: Cascade)
+  video               Video    @relation(fields: [video_id], references: [video_id], onDelete: Cascade)
+}
+
+model Video {
+  video_id     Int        @id @default(autoincrement())
+  video_name   String?
+  video_url_id String     @unique
+  recorded_at  DateTime?
+  tree_views   TreeView[]
+}
+
+model Tree {
+  tree_id       Int           @id @default(autoincrement())
+  odmf_name     String?
+  tree_no       Int
+  species       String?       @db.VarChar(100)
+  species_code  String?       @db.VarChar(10)
+  row_id        Int?
+  latitude      Decimal?      @db.Decimal(11, 8)
+  longitude     Decimal?      @db.Decimal(11, 8)
+  elevation     Decimal?      @db.Decimal(5, 2)
+  height        Decimal?      @db.Decimal(5, 2)
+  year_planted  Int?
+  comment       String?
+  odmf_id       Int?
+  tree_plot     Int?
+  tree_letter   String?
+  plot_id       Int
+  plot          Plot          @relation(fields: [plot_id], references: [plot_id], onDelete: Cascade)
+  tree_views    TreeView[]
+  tree_statuses TreeStatus[]
+
+  @@unique([plot_id, tree_no])
+}
+
+model Plot {
+  plot_id          Int        @id @default(autoincrement())
+  plot_border      Unsupported("geometry")?    // Requires PostGIS extension
+  plot_information String?    @db.VarChar(1000)
+  plot_name        String?    @db.VarChar(150)
+  area_id          Int
+  area             Area       @relation(fields: [area_id], references: [area_id], onDelete: Cascade)
+  trees            Tree[]
+}
+
+model Area {
+  area_id          Int           @id @default(autoincrement())
+  area_name        String?       @db.VarChar(200)
+  area_information String?       @db.VarChar(1000)
+  plots            Plot[]
+  area_admins      AreaAdmins[]
+}
+
+model TreeStatus {
+  tree_status_id   Int       @id @default(autoincrement())
+  DBH           Decimal? @db.Decimal(5, 2)
+  height_increment Decimal? @db.Decimal(4, 2)
+  harvest_weight   Decimal? @db.Decimal(7, 2)
+  recorded_at      DateTime?
+  tree_id          Int
+  tree             Tree      @relation(fields: [tree_id], references: [tree_id], onDelete: Cascade)
+}
+
+model User {
+  user_id    Int          @id @default(autoincrement())
+  username   String       @unique @db.VarChar(50)
+  email      String       @unique @db.VarChar(100)
+  password   String       @db.VarChar(255)
+  full_name  String?      @db.VarChar(100)
+  role       String?      @default("user") @db.VarChar(50)
+  area_admins AreaAdmins[]
+}
+
+model AreaAdmins {
+  area_admins_id Int   @id @default(autoincrement())
+  user_id        Int
+  area_id        Int
+  user           User @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+  area           Area @relation(fields: [area_id], references: [area_id], onDelete: Cascade)
+}
