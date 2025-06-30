@@ -308,6 +308,34 @@ app.get("/api/trees", async (req, res) => {
   }
 });
 
+//******************************************************************************
+// GET: Get all videos (TreeView) for a specific tree
+app.get("/api/tree/:treeId/videos", async (req, res) => {
+  const treeId = parseInt(req.params.treeId);
+
+  if (isNaN(treeId)) {
+    return res.status(400).json({ error: "Invalid tree ID" });
+  }
+
+  try {
+    const treeViews = await prisma.treeView.findMany({
+      where: { tree_id: treeId },
+      include: {
+        video: true,
+      },
+    });
+
+    if (!treeViews || treeViews.length === 0) {
+      return res.status(404).json({ error: "No videos found for this tree" });
+    }
+
+    res.json(treeViews);
+  } catch (error) {
+    console.error("Failed to fetch tree videos:", error);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
 //video: post  ******************************************************************
 
 app.post("/video", async (req, res) => {
@@ -383,6 +411,7 @@ app.post("/tree-view/import", async (req, res) => {
       });
 
       if (!video || !tree) {
+        // console.log(`Not found — Video: ${videoName}, Tree: ${odmfName}`);
         notFound.push({
           video_name: videoName,
           odmf_name: odmfName,
