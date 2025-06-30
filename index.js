@@ -174,23 +174,23 @@ app.post("/api/plots", async (req, res) => {
 });
 
 // plots/:areaId ******************************************************************
-app.get("/api/plots", async (req, res) => {
-  try {
-    const plots = await prisma.plot.findMany({
-      select: {
-        plot_name: true,
-        plot_information: true,
-        area_id: true,
-        plot_id: true,
-      },
-    });
+// app.get("/api/plots", async (req, res) => {
+//   try {
+//     const plots = await prisma.plot.findMany({
+//       select: {
+//         plot_name: true,
+//         plot_information: true,
+//         area_id: true,
+//         plot_id: true,
+//       },
+//     });
 
-    res.json(plots);
-  } catch (err) {
-    console.error("Error fetching all plots:", err);
-    res.status(500).json({ error: "Internal Server Error" });
-  }
-});
+//     res.json(plots);
+//   } catch (err) {
+//     console.error("Error fetching all plots:", err);
+//     res.status(500).json({ error: "Internal Server Error" });
+//   }
+// });
 // plots/:get ******************************************************************
 
 app.get("/api/plots", async (req, res) => {
@@ -268,6 +268,43 @@ app.post("/api/trees", async (req, res) => {
   } catch (error) {
     console.error("Failed to insert trees:", error);
     res.status(500).json({ error: "Failed to insert tree data" });
+  }
+});
+
+// tree: get ********************************************************************
+app.get("/api/trees", async (req, res) => {
+  try {
+    const { plot_id } = req.query;
+
+    const whereClause = plot_id ? { where: { plot_id: Number(plot_id) } } : {};
+
+    const trees = await prisma.tree.findMany({
+      ...whereClause,
+      select: {
+        tree_id: true,
+        tree_no: true,
+        species: true,
+        latitude: true,
+        longitude: true,
+        plot_id: true,
+      },
+    });
+
+    const formattedTrees = trees
+      .filter((tree) => tree.latitude && tree.longitude)
+      .map((tree) => ({
+        tree_id: tree.tree_id,
+        tree_no: tree.tree_no,
+        species: tree.species,
+        lat: parseFloat(tree.latitude),
+        lng: parseFloat(tree.longitude),
+        plot_id: tree.plot_id,
+      }));
+
+    res.json(formattedTrees);
+  } catch (err) {
+    console.error("Error fetching trees:", err);
+    res.status(500).json({ error: "Internal Server Error" });
   }
 });
 
