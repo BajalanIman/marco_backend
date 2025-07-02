@@ -287,6 +287,11 @@ app.get("/api/trees", async (req, res) => {
         latitude: true,
         longitude: true,
         plot_id: true,
+        elevation: true,
+        height: true,
+        year_planted: true,
+        tree_plot: true,
+        tree_letter: true,
       },
     });
 
@@ -299,6 +304,11 @@ app.get("/api/trees", async (req, res) => {
         lat: parseFloat(tree.latitude),
         lng: parseFloat(tree.longitude),
         plot_id: tree.plot_id,
+        elevation: parseFloat(tree.elevation),
+        height: parseFloat(tree.height),
+        year_planted: tree.year_planted,
+        tree_plot: tree.tree_plot,
+        tree_letter: tree.tree_letter,
       }));
 
     res.json(formattedTrees);
