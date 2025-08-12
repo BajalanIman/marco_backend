@@ -9,7 +9,7 @@ const prisma = new PrismaClient();
 
 app.use(cors());
 app.use(express.static("public"));
-app.use(express.json());
+app.use(express.json({ limit: "10mb" }));
 
 app.get("/", (req, res) => {
   res.json("Hello, this is the backend!");
@@ -455,6 +455,147 @@ app.post("/tree-view/import", async (req, res) => {
     message: `Import completed: ${imported} added, ${skipped} skipped.`,
     unmatched: notFound,
   });
+});
+// Soil  ******************************************************************
+app.post("/api/soil", async (req, res) => {
+  try {
+    const samples = req.body?.samples;
+    const providedPlotId = req.body?.plot_id ?? null;
+
+    if (!Array.isArray(samples) || samples.length === 0) {
+      return res
+        .status(400)
+        .json({ error: "Missing or invalid 'samples' array in request body" });
+    }
+
+    // validate plot_id (use providedPlotId or first sample.plot_id)
+    const plotIdToUse = providedPlotId ?? samples[0]?.plot_id;
+    if (!plotIdToUse && plotIdToUse !== 0) {
+      return res
+        .status(400)
+        .json({
+          error:
+            "Missing plot_id (pass plot_id in request body or in each sample)",
+        });
+    }
+
+    // ensure plot exists
+    const plot = await prisma.plot.findUnique({
+      where: { plot_id: Number(plotIdToUse) },
+    });
+    if (!plot) {
+      return res
+        .status(400)
+        .json({ error: `Plot with id=${plotIdToUse} not found` });
+    }
+
+    const formatDecimalStr = (v, precision = 4) => {
+      if (v === null || v === undefined || v === "") return null;
+      const num = Number(String(v).replace(",", "."));
+      if (!Number.isFinite(num)) return null;
+      // return string for Prisma Decimal
+      return num.toFixed(precision);
+    };
+
+    const insertedIds = [];
+    const errors = [];
+
+    for (let i = 0; i < samples.length; i++) {
+      const row = samples[i] || {};
+
+      // create soil sample
+      let createdSample;
+      try {
+        createdSample = await prisma.soilSample.create({
+          data: {
+            plot_id: Number(plotIdToUse),
+            depth:
+              row.depth === "" || row.depth == null
+                ? null
+                : Number.parseInt(String(row.depth).replace(",", "."), 10),
+            location: row.location ?? null,
+            repetition:
+              row.repetition === "" || row.repetition == null
+                ? null
+                : Number.parseInt(String(row.repetition).replace(",", "."), 10),
+            x_coord: formatDecimalStr(row.x_coord, 4),
+            y_coord: formatDecimalStr(row.y_coord, 4),
+          },
+        });
+      } catch (err) {
+        console.error("Failed creating SoilSample for row", i + 1, err);
+        errors.push({
+          row: i + 1,
+          error: `Failed to create SoilSample: ${err.message ?? String(err)}`,
+        });
+        continue;
+      }
+
+      // prepare variables
+      const vars = (row.variables || [])
+        .filter((v) => v && v.variable_name)
+        .map((v) => {
+          const val = formatDecimalStr(v.value, 4);
+          return val === null
+            ? null
+            : {
+                soil_sample_id: createdSample.id,
+                variable_name: String(v.variable_name).trim(),
+                value: val,
+              };
+        })
+        .filter(Boolean);
+
+      if (vars.length > 0) {
+        try {
+          await prisma.soilVariable.createMany({ data: vars });
+        } catch (err) {
+          console.error(
+            "Failed inserting variables for sample",
+            createdSample.id,
+            err
+          );
+          errors.push({
+            row: i + 1,
+            error: `Sample created (id=${
+              createdSample.id
+            }) but failed to insert variables: ${err.message ?? String(err)}`,
+          });
+          // keep sample ID; continue
+        }
+      } else {
+        // No numeric variables found — record as error or warning
+        errors.push({
+          row: i + 1,
+          error: "No numeric variables found for this sample",
+        });
+        // optionally delete createdSample if you don't want empty samples:
+        // await prisma.soilSample.delete({ where: { id: createdSample.id } });
+        // continue;
+      }
+
+      insertedIds.push(createdSample.id);
+    }
+
+    if (insertedIds.length === 0) {
+      return res.status(500).json({ error: "No records inserted", errors });
+    }
+
+    return res.status(201).json({
+      message: "Records processed",
+      insertedCount: insertedIds.length,
+      insertedIds,
+      errors,
+    });
+  } catch (err) {
+    console.error("Import failed:", err);
+    return res
+      .status(500)
+      .json({
+        error: "Failed to import samples",
+        details: err.message ?? String(err),
+      });
+  }
 });
 
 // ******************************************************************

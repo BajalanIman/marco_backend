@@ -60,6 +60,29 @@ model Tree {
   @@unique([plot_id, tree_no])
 }
 
+model SoilSample {
+  id         Int              @id @default(autoincrement())
+  plot_id    Int
+  plot       Plot             @relation(fields: [plot_id], references: [plot_id], onDelete: Cascade)
+  depth      Int?
+  location   String?           @db.VarChar(100)
+  repetition Int?
+  x_coord    Decimal?          @db.Decimal(12, 4)
+  y_coord    Decimal?          @db.Decimal(12, 4)
+
+  variables  SoilVariable[]
+}
+
+model SoilVariable {
+  id             Int      @id @default(autoincrement())
+  soil_sample_id Int
+  variable_name  String   @db.VarChar(100)
+  value          Decimal  @db.Decimal(10, 4)
+
+  sample         SoilSample @relation(fields: [soil_sample_id], references: [id], onDelete: Cascade)
+}
+
+
 model Plot {
   plot_id          Int        @id @default(autoincrement())
   plot_border      Unsupported("geometry")?    // Requires PostGIS extension
@@ -68,6 +91,7 @@ model Plot {
   area_id          Int
   area             Area       @relation(fields: [area_id], references: [area_id], onDelete: Cascade)
   trees            Tree[]
+  soilSamples      SoilSample[]
 }
 
 model Area {
