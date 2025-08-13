@@ -456,7 +456,7 @@ app.post("/tree-view/import", async (req, res) => {
     unmatched: notFound,
   });
 });
-// Soil  ******************************************************************
+// Soil/post  ******************************************************************
 app.post("/api/soil", async (req, res) => {
   try {
     const samples = req.body?.samples;
@@ -471,12 +471,10 @@ app.post("/api/soil", async (req, res) => {
     // validate plot_id (use providedPlotId or first sample.plot_id)
     const plotIdToUse = providedPlotId ?? samples[0]?.plot_id;
     if (!plotIdToUse && plotIdToUse !== 0) {
-      return res
-        .status(400)
-        .json({
-          error:
-            "Missing plot_id (pass plot_id in request body or in each sample)",
-        });
+      return res.status(400).json({
+        error:
+          "Missing plot_id (pass plot_id in request body or in each sample)",
+      });
     }
 
     // ensure plot exists
@@ -589,10 +587,66 @@ app.post("/api/soil", async (req, res) => {
     });
   } catch (err) {
     console.error("Import failed:", err);
+    return res.status(500).json({
+      error: "Failed to import samples",
+      details: err.message ?? String(err),
+    });
+  }
+});
+// Soil/Get ******************************************************************
+
+// GET /api/soil?plot_id=123
+app.get("/api/soil", async (req, res) => {
+  try {
+    const plotIdRaw =
+      req.query.plot_id ?? req.query.plotId ?? req.body?.plot_id;
+    const plotId = plotIdRaw !== undefined ? Number(plotIdRaw) : NaN;
+
+    if (Number.isNaN(plotId)) {
+      return res
+        .status(400)
+        .json({ error: "Missing or invalid plot_id query parameter" });
+    }
+
+    // Fetch samples with variables
+    const samples = await prisma.soilSample.findMany({
+      where: { plot_id: plotId },
+      include: { variables: true },
+      orderBy: { depth: "asc" },
+    });
+
+    // Map Decimal (or other) types into JSON-friendly strings/numbers
+    const mapped = samples.map((s) => ({
+      id: s.id,
+      plot_id: s.plot_id,
+      depth: s.depth,
+      location: s.location,
+      repetition: s.repetition,
+      x_coord:
+        s.x_coord === null || s.x_coord === undefined
+          ? null
+          : String(s.x_coord),
+      y_coord:
+        s.y_coord === null || s.y_coord === undefined
+          ? null
+          : String(s.y_coord),
+      variables: (s.variables || []).map((v) => ({
+        id: v.id,
+        variable_name: v.variable_name,
+        // Prisma Decimal might be an object; serialise to string. Frontend can convert to Number if needed.
+        value:
+          v.value === null || v.value === undefined ? null : String(v.value),
+      })),
+      createdAt: s.createdAt ?? null, // if you have timestamps, else ignore
+    }));
+
+    return res.json({ samples: mapped });
+  } catch (err) {
+    console.error("Failed to fetch soil samples:", err);
     return res
       .status(500)
       .json({
-        error: "Failed to import samples",
+        error: "Failed to fetch soil samples",
         details: err.message ?? String(err),
       });
   }
