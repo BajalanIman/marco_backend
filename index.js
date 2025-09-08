@@ -7,7 +7,13 @@ const app = express();
 const port = 8800;
 const prisma = new PrismaClient();
 
-app.use(cors());
+app.use(
+  cors({
+    origin: "https://https://roots-and-robots.netlify.app/",
+    methods: ["GET", "POST", "PUT", "DELETE"],
+    credentials: true,
+  })
+);
 app.use(express.static("public"));
 app.use(express.json({ limit: "10mb" }));
 
@@ -643,12 +649,10 @@ app.get("/api/soil", async (req, res) => {
     return res.json({ samples: mapped });
   } catch (err) {
     console.error("Failed to fetch soil samples:", err);
-    return res
-      .status(500)
-      .json({
-        error: "Failed to fetch soil samples",
-        details: err.message ?? String(err),
-      });
+    return res.status(500).json({
+      error: "Failed to fetch soil samples",
+      details: err.message ?? String(err),
+    });
   }
 });
 
